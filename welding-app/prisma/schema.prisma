@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Machine {
+  id         Int                @id @default(autoincrement())
+  name       String
+  model      String?
+  location   String?
+  status     String             @default("active")
+  createdAt  DateTime           @default(now())
+
+  thresholds MachineThreshold[]
+  readings   LiveReading[]
+  alerts     Alert[]
+
+  @@map("machines")
+}
+
+model MachineThreshold {
+  id             Int      @id @default(autoincrement())
+  machineId      Int
+  currentMax     Float
+  voltageMax     Float?
+  temperatureMax Float?
+  hysteresis     Float    @default(0)
+  updatedAt      DateTime @updatedAt
+
+  machine        Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@map("machine_thresholds")
+}
+
+model LiveReading {
+  id               BigInt   @id @default(autoincrement())
+  machineId        Int
+  currentValue     Float
+  voltageValue     Float?
+  temperatureValue Float?
+  timestamp        DateTime @default(now())
+
+  machine          Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@map("live_readings")
+}
+
+model Alert {
+  id             BigInt   @id @default(autoincrement())
+  machineId      Int
+  parameter      String
+  actualValue    Float
+  thresholdValue Float
+  severity       String   @default("medium")
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  resolvedAt     DateTime?
+
+  machine        Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@map("alerts")
+}
