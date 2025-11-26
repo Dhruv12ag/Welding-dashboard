@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useMemo } from "react";
 import useSWR from "swr";
-import { fetcher, Alert } from "@/lib/api";
+import { fetcher, Alert, Machine } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { io, Socket } from "socket.io-client";
+import { AlertCircle, AlertTriangle, Zap, Gauge } from "lucide-react";
 
 import DashboardStatsCard from "@/components/DashboardStatsCard";
 import AlertsTable from "@/components/AlertTable";
@@ -52,21 +53,46 @@ export default function DashboardPage() {
   // 3. State for Graph History (Array of last 20 readings)
   const [graphHistory, setGraphHistory] = useState<LiveReading[]>([]);
 
-  // 4. Fetch Alerts (Existing Logic)
-  const { data: alerts } = useSWR<Alert[]>("/api/alerts", fetcher, {
+  // 4. Fetch Machines
+  const { data: machines = [] } = useSWR<Machine[]>("/api/machines", fetcher, {
+    refreshInterval: 60000, // Refresh every minute
+  });
+
+  // Set first machine as default when machines load
+  useEffect(() => {
+    if (machines.length > 0 && selectedMachineId === null) {
+      setSelectedMachineId(machines[0].id);
+    }
+  }, [machines, selectedMachineId]);
+
+  // 5. Fetch Alerts (Existing Logic)
+  const { data: alerts } = useSWR<Alert[]>("/api/alerts?limit=50", fetcher, {
     refreshInterval: 3000,
   });
 
-  // 5. SOCKET.IO CONNECTION
+  // Filter active alerts for this machine
+  const machineAlerts =
+    alerts?.filter(
+      (a) => a.machineId === selectedMachineId && a.status === "active"
+    ) || [];
+
+  const activeAlertsCount =
+    alerts?.filter((a) => a.status === "active").length || 0;
+  const highSeverityCount =
+    alerts?.filter((a) => a.status === "active" && a.severity === "high")
+      .length || 0;
+
+  // 6. SOCKET.IO CONNECTION
   useEffect(() => {
     // Connect to the BACKEND server (Port 3001), not Next.js
     const socket: Socket = io("http://localhost:3001");
+
+    if (!selectedMachineId) return;
 
     console.log(`Listening for updates on: machine-${selectedMachineId}`);
 
     // Listen for specific machine events
     socket.on(`machine-${selectedMachineId}`, (newReading: LiveReading) => {
-      // DEBUG LOG: Open Browser Console (F12) to see exactly what arrives
       console.log("⚡ Socket Received:", newReading);
 
       setLiveData(newReading);
@@ -83,7 +109,7 @@ export default function DashboardPage() {
     return () => {
       socket.disconnect();
     };
-  }, [selectedMachineId]); // Re-run this if user selects a different machine
+  }, [selectedMachineId]);
 
   // Prepare Data for the Chart Component
   const chartLabels = useMemo(
@@ -100,9 +126,7 @@ export default function DashboardPage() {
   );
 
   const chartData = useMemo(
-    () =>
-      // Ensure currentValue is treated as a number for the graph
-      graphHistory.map((d) => Number(d.currentValue)),
+    () => graphHistory.map((d) => Number(d.currentValue)),
     [graphHistory]
   );
 
@@ -117,22 +141,35 @@ export default function DashboardPage() {
   // Dynamic Cards
   const cards = [
     {
-      title: "Selected Machine",
-      value: selectedMachineName,
+      title: "Active Alerts",
+      value: activeAlertsCount,
+      icon: AlertCircle,
+      color: activeAlertsCount > 0 ? "text-red-500" : "text-green-500",
+      bgColor:
+        activeAlertsCount > 0
+          ? "bg-red-50 dark:bg-red-900/10"
+          : "bg-green-50 dark:bg-green-900/10",
+    },
+    {
+      title: "High Severity",
+      value: highSeverityCount,
+      icon: AlertTriangle,
+      color: "text-orange-500",
+      bgColor: "bg-orange-50 dark:bg-orange-900/10",
     },
     {
       title: "Live Current",
-      // Force Number() conversion to prevent string/type errors
       value: liveData ? `${Number(liveData.currentValue).toFixed(2)} A` : "--",
+      icon: Zap,
+      color: "text-blue-500",
+      bgColor: "bg-blue-50 dark:bg-blue-900/10",
     },
     {
       title: "Live Voltage",
-      // Force Number() conversion to prevent string/type errors
       value: liveData ? `${Number(liveData.voltageValue).toFixed(2)} V` : "--",
-    },
-    {
-      title: "Active Alerts",
-      value: alerts?.length ?? 0,
+      icon: Gauge,
+      color: "text-purple-500",
+      bgColor: "bg-purple-50 dark:bg-purple-900/10",
     },
   ];
 
@@ -163,29 +200,69 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Cards */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {cards.map((c) => (
-          <DashboardStatsCard {...c} key={c.title} />
-        ))}
+        {cards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div
+              key={card.title}
+              className={`${card.bgColor} rounded-lg p-4 border border-gray-200 dark:border-gray-700`}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                    {card.title}
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    {card.value}
+                  </p>
+                </div>
+                <Icon className={`${card.color} h-5 w-5 opacity-70`} />
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {/* Alert Banner */}
+      {machineAlerts.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-red-900 dark:text-red-300">
+                Active Alerts on Machine {selectedMachineId}
+              </h3>
+              <ul className="mt-2 space-y-1 text-sm text-red-800 dark:text-red-200">
+                {machineAlerts.map((alert) => (
+                  <li key={alert.id}>
+                    •{" "}
+                    <span className="font-medium">
+                      {alert.parameter.toUpperCase()}
+                    </span>
+                    : {alert.actualValue.toFixed(2)} /{" "}
+                    {alert.thresholdValue.toFixed(2)} ({alert.severity})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Charts + Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Live Chart Section */}
-        <div className="p-4 rounded-xl bg-white dark:bg-black border border-gray-200 dark:border-gray-800 shadow-sm lg:col-span-2">
+        <div className="lg:col-span-2 p-4 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-sm">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium">Live Current Trend</h3>
-            {/* Small indicator dot */}
-            <div className="flex items-center gap-2">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  liveData ? "bg-green-500 animate-pulse" : "bg-gray-300"
-                }`}
-              ></span>
-              <span className="text-xs text-gray-500">
-                {liveData ? "Live" : "Waiting..."}
-              </span>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Live Current Trend
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Last 20 readings
+              </p>
             </div>
           </div>
 
@@ -196,8 +273,64 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Alerts Table */}
-        <AlertsTable alerts={alerts ?? []} />
+        {/* Recent Alerts Sidebar */}
+        <div className="p-4 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-sm h-fit">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            Recent Alerts
+          </h3>
+
+          {alerts && alerts.length > 0 ? (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {alerts.slice(0, 5).map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`p-3 rounded-lg border ${
+                    alert.status === "active"
+                      ? "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10"
+                      : "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10"
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <span
+                      className={`text-xs font-semibold uppercase px-2 py-1 rounded ${
+                        alert.severity === "high"
+                          ? "bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200"
+                          : alert.severity === "medium"
+                          ? "bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200"
+                          : "bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200"
+                      }`}
+                    >
+                      {alert.severity}
+                    </span>
+                    <span
+                      className={`text-xs font-semibold uppercase ${
+                        alert.status === "active"
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-green-600 dark:text-green-400"
+                      }`}
+                    >
+                      {alert.status}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                    {alert.parameter.toUpperCase()}
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    {alert.actualValue.toFixed(2)} /{" "}
+                    {alert.thresholdValue.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                    {new Date(alert.createdAt || "").toLocaleTimeString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <p className="text-sm">No alerts</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
