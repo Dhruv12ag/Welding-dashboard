@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import useSWR from "swr";
-import { fetcher, Alert, Machine } from "@/lib/api";
+import { fetcher, Alert } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { io, Socket } from "socket.io-client";
 import { AlertCircle, AlertTriangle, Zap, Gauge } from "lucide-react";
@@ -33,7 +33,9 @@ interface Machine {
 
 export default function DashboardPage() {
   // 1. Fetch Machines from API
-  const { data: machines } = useSWR<Machine[]>("/api/machines", fetcher);
+  const { data: machines = [] } = useSWR<Machine[]>("/api/machines", fetcher, {
+    refreshInterval: 60000, // Refresh every minute
+  });
 
   // 2. State for Machine Selection
   const [selectedMachineId, setSelectedMachineId] = useState<number | null>(
@@ -52,11 +54,6 @@ export default function DashboardPage() {
 
   // 3. State for Graph History (Array of last 20 readings)
   const [graphHistory, setGraphHistory] = useState<LiveReading[]>([]);
-
-  // 4. Fetch Machines
-  const { data: machines = [] } = useSWR<Machine[]>("/api/machines", fetcher, {
-    refreshInterval: 60000, // Refresh every minute
-  });
 
   // Set first machine as default when machines load
   useEffect(() => {

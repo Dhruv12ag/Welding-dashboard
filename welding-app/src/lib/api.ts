@@ -30,8 +30,12 @@ export type AlertFilter = {
   offset?: number;
 };
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
 export async function fetcher(url: string) {
-  const res = await fetch(url);
+  // If URL is absolute, use as-is; otherwise prepend API_BASE_URL
+  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+  const res = await fetch(fullUrl);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
