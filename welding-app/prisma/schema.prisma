@@ -13,27 +13,14 @@ model Machine {
   model      String?
   location   String?
   status     String             @default("active")
+  maxCurrent Float?
+  maxVoltage Float?
   createdAt  DateTime           @default(now())
 
-  thresholds MachineThreshold[]
   readings   LiveReading[]
   alerts     Alert[]
 
   @@map("machines")
-}
-
-model MachineThreshold {
-  id             Int      @id @default(autoincrement())
-  machineId      Int
-  currentMax     Float
-  voltageMax     Float?
-  temperatureMax Float?
-  hysteresis     Float    @default(0)
-  updatedAt      DateTime @updatedAt
-
-  machine        Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
-
-  @@map("machine_thresholds")
 }
 
 model LiveReading {
