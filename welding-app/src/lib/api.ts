@@ -7,15 +7,6 @@ export type Machine = {
   createdAt?: string;
 };
 
-export type LiveReading = {
-  id: string | number;
-  machineId: number;
-  currentValue: number;
-  voltageValue?: number | null;
-  temperatureValue?: number | null;
-  timestamp?: string;
-};
-
 export type Alert = {
   id: string | number;
   machineId: number;

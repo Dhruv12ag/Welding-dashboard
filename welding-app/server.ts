@@ -57,23 +57,25 @@ app.post("/api/readings", async (req: Request, res: Response) => {
     io.emit(`machine-${machineId}`, reading);
 
     // 3. Check Thresholds & Generate Alerts
-    const thresholds = await prisma.machineThreshold.findFirst({
-      where: { machineId: Number(machineId) },
+    const machine = await prisma.machine.findUnique({
+      where: { id: Number(machineId) },
     });
 
-    if (thresholds) {
-      await checkAndCreateAlert(
-        Number(machineId),
-        "current",
-        current,
-        thresholds.currentMax
-      );
-      if (thresholds.voltageMax) {
+    if (machine) {
+      if (machine.maxCurrent) {
+        await checkAndCreateAlert(
+          Number(machineId),
+          "current",
+          current,
+          machine.maxCurrent
+        );
+      }
+      if (machine.maxVoltage) {
         await checkAndCreateAlert(
           Number(machineId),
           "voltage",
           voltage,
-          thresholds.voltageMax
+          machine.maxVoltage
         );
       }
     }

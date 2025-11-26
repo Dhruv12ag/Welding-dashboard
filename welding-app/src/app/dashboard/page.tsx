@@ -22,9 +22,29 @@ interface LiveReading {
   timestamp: string;
 }
 
+interface Machine {
+  id: number;
+  name: string;
+  model?: string | null;
+  location?: string | null;
+  status?: string;
+}
+
 export default function DashboardPage() {
-  // 1. State for Machine Selection
-  const [selectedMachineId, setSelectedMachineId] = useState<number>(1);
+  // 1. Fetch Machines from API
+  const { data: machines } = useSWR<Machine[]>("/api/machines", fetcher);
+
+  // 2. State for Machine Selection
+  const [selectedMachineId, setSelectedMachineId] = useState<number | null>(
+    null
+  );
+
+  // Set default machine when machines load
+  useEffect(() => {
+    if (machines && machines.length > 0 && !selectedMachineId) {
+      setSelectedMachineId(machines[0].id);
+    }
+  }, [machines, selectedMachineId]);
 
   // 2. State for Live Data (Instant values for Cards)
   const [liveData, setLiveData] = useState<LiveReading | null>(null);
@@ -86,11 +106,19 @@ export default function DashboardPage() {
     [graphHistory]
   );
 
+  // Get selected machine name
+  const selectedMachineName = useMemo(
+    () =>
+      machines?.find((m) => m.id === selectedMachineId)?.name ||
+      "Select Machine",
+    [machines, selectedMachineId]
+  );
+
   // Dynamic Cards
   const cards = [
     {
       title: "Selected Machine",
-      value: `Machine #${selectedMachineId}`,
+      value: selectedMachineName,
     },
     {
       title: "Live Current",
@@ -118,16 +146,19 @@ export default function DashboardPage() {
           <span className="text-sm text-gray-500">Select Machine:</span>
           <select
             className="p-2 border rounded-md bg-background text-foreground"
-            value={selectedMachineId}
+            value={selectedMachineId || ""}
             onChange={(e) => {
               setSelectedMachineId(Number(e.target.value));
               setGraphHistory([]); // Clear graph when switching
               setLiveData(null);
             }}
           >
-            <option value={1}>Machine 1</option>
-            <option value={2}>Machine 2</option>
-            <option value={3}>Machine 3</option>
+            <option value="">Choose Machine </option>
+            {machines?.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -161,7 +192,7 @@ export default function DashboardPage() {
           <LineChart
             labels={chartLabels}
             data={chartData}
-            label={`Current (Amps) - Machine ${selectedMachineId}`}
+            label={`Current (Amps) - ${selectedMachineName}`}
           />
         </div>
 

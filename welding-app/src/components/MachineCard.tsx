@@ -1,19 +1,42 @@
 "use client";
 
-import { Machine, LiveReading } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { Machine } from "@/lib/api";
 import { CpuIcon } from "lucide-react";
 
-export default function MachineCard({
-  machine,
-  latestReading,
-}: {
-  machine: Machine;
-  latestReading?: LiveReading | null;
-}) {
+type LiveReading = {
+  id: string | number;
+  machineId: number;
+  currentValue: number;
+  voltageValue?: number | null;
+  temperatureValue?: number | null;
+  timestamp?: string;
+};
+
+export default function MachineCard({ machine }: { machine: Machine }) {
+  const [latestReading, setLatestReading] = useState<LiveReading | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLatestReading = async () => {
+      try {
+        const response = await fetch(`/api/readings/${machine.id}/latest`);
+        const data = await response.json();
+        setLatestReading(data);
+      } catch (error) {
+        console.error("Error fetching latest reading:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLatestReading();
+  }, [machine.id]);
+
   const status = latestReading
     ? latestReading.currentValue > 150 ||
-      latestReading.voltageValue! > 50 ||
-      latestReading.temperatureValue! > 90
+      (latestReading.voltageValue ?? 0) > 50 ||
+      (latestReading.temperatureValue ?? 0) > 90
       ? "Critical"
       : "OK"
     : "No Data";
@@ -42,7 +65,9 @@ export default function MachineCard({
           Latest Readings:
         </p>
 
-        {latestReading ? (
+        {loading ? (
+          <p className="text-sm text-gray-400">Loading...</p>
+        ) : latestReading ? (
           <div className="text-sm mt-2 space-y-1">
             <p>Current: {latestReading.currentValue} A</p>
             <p>Voltage: {latestReading.voltageValue} V</p>
