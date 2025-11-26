@@ -13,12 +13,13 @@ model Machine {
   model      String?
   location   String?
   status     String             @default("active")
-  maxCurrent Float?
-  maxVoltage Float?
+  maxCurrent Float?             @default(200)
+  maxVoltage Float?             @default(40)
   createdAt  DateTime           @default(now())
 
-  readings   LiveReading[]
-  alerts     Alert[]
+  readings      LiveReading[]
+  alerts        Alert[]
+  breaches      ThresholdBreach[]
 
   @@map("machines")
 }
@@ -39,15 +40,32 @@ model LiveReading {
 model Alert {
   id             BigInt   @id @default(autoincrement())
   machineId      Int
-  parameter      String
+  parameter      String   // "current" or "voltage"
   actualValue    Float
   thresholdValue Float
   severity       String   @default("medium")
   status         String   @default("active")
   createdAt      DateTime @default(now())
   resolvedAt     DateTime?
+  durationMs     BigInt?  // Alert duration in milliseconds (calculated on resolve)
 
   machine        Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
 
   @@map("alerts")
+}
+
+model ThresholdBreach {
+  id             BigInt   @id @default(autoincrement())
+  machineId      Int
+  parameter      String   // "current" or "voltage"
+  breachCount    Int      @default(0)
+  normalCount    Int      @default(0)
+  lastReading    Float
+  lastBreachAt   DateTime @default(now())
+  activeAlertId  BigInt?  // Link to active alert to prevent spam
+
+  machine        Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@unique([machineId, parameter])
+  @@map("threshold_breaches")
 }
