@@ -23,11 +23,29 @@ interface LiveReading {
   timestamp: string;
 }
 
+interface Machine {
+  id: number;
+  name: string;
+  model?: string | null;
+  location?: string | null;
+  status?: string;
+}
+
 export default function DashboardPage() {
-  // 1. State for Machine Selection
+  // 1. Fetch Machines from API
+  const { data: machines } = useSWR<Machine[]>("/api/machines", fetcher);
+
+  // 2. State for Machine Selection
   const [selectedMachineId, setSelectedMachineId] = useState<number | null>(
     null
   );
+
+  // Set default machine when machines load
+  useEffect(() => {
+    if (machines && machines.length > 0 && !selectedMachineId) {
+      setSelectedMachineId(machines[0].id);
+    }
+  }, [machines, selectedMachineId]);
 
   // 2. State for Live Data (Instant values for Cards)
   const [liveData, setLiveData] = useState<LiveReading | null>(null);
@@ -112,6 +130,14 @@ export default function DashboardPage() {
     [graphHistory]
   );
 
+  // Get selected machine name
+  const selectedMachineName = useMemo(
+    () =>
+      machines?.find((m) => m.id === selectedMachineId)?.name ||
+      "Select Machine",
+    [machines, selectedMachineId]
+  );
+
   // Dynamic Cards
   const cards = [
     {
@@ -149,56 +175,28 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Real-time monitoring of welding equipment
-        </p>
-      </div>
+      {/* Header & Machine Selector */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
 
-      {/* Machine Selector */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Select Machine
-            </label>
-            {machines.length > 0 ? (
-              <select
-                className="mt-2 w-64 p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={selectedMachineId || ""}
-                onChange={(e) => {
-                  setSelectedMachineId(Number(e.target.value));
-                  setGraphHistory([]);
-                  setLiveData(null);
-                }}
-              >
-                {machines.map((machine) => (
-                  <option key={machine.id} value={machine.id}>
-                    {machine.name} {machine.model ? `(${machine.model})` : ""}{" "}
-                    {machine.location ? `- ${machine.location}` : ""}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="mt-2 p-2 text-sm text-gray-500 dark:text-gray-400">
-                Loading machines...
-              </div>
-            )}
-          </div>
-
-          {/* Connection Status */}
-          <div className="flex items-center gap-2">
-            <div
-              className={`h-3 w-3 rounded-full ${
-                liveData ? "bg-green-500 animate-pulse" : "bg-yellow-500"
-              }`}
-            ></div>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              {liveData ? "Connected" : "Waiting for data..."}
-            </span>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">Select Machine:</span>
+          <select
+            className="p-2 border rounded-md bg-background text-foreground"
+            value={selectedMachineId || ""}
+            onChange={(e) => {
+              setSelectedMachineId(Number(e.target.value));
+              setGraphHistory([]); // Clear graph when switching
+              setLiveData(null);
+            }}
+          >
+            <option value="">Choose Machine </option>
+            {machines?.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -271,7 +269,7 @@ export default function DashboardPage() {
           <LineChart
             labels={chartLabels}
             data={chartData}
-            label={`Current (Amps) - Machine ${selectedMachineId}`}
+            label={`Current (Amps) - ${selectedMachineName}`}
           />
         </div>
 

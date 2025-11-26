@@ -265,7 +265,7 @@ app.post("/api/readings", async (req: Request, res: Response) => {
     // 3. Emit to Frontend (Instant Live Update)
     io.emit(`machine-${machineId}`, reading);
 
-    // 4. Get machine thresholds
+
     const machine = await prisma.machine.findUnique({
       where: { id: Number(machineId) },
     });

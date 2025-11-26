@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import Sidebar from "@/components/Sidebar";
-import Topbar from "@/components/Topbar";
 import AlertsTable from "@/components/AlertTable";
 import { Alert, fetcher } from "@/lib/api";
 
@@ -42,7 +41,6 @@ export default function AlertsPage() {
 
       {/* Main Content */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        <Topbar />
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Header */}
